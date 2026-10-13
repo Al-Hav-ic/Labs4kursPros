@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Лабораторна №1 — теорія: м'ютекси та потоки в C++</title>
+  <style>
+    :root {
+      --bg: #f4f6f9;
+      --paper: #ffffff;
+      --text: #1a1d26;
+      --muted: #5c6370;
+      --accent: #2563eb;
+      --accent-soft: #dbeafe;
+      --border: #e2e8f0;
+      --code-bg: #0f172a;
+      --code-text: #e2e8f0;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Segoe UI Variable", Arial, "Helvetica Neue", system-ui, sans-serif;
+      line-height: 1.65;
+      color: var(--text);
+      background: var(--bg);
+    }
+
+    header {
+      background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
+      color: #fff;
+      padding: 2.5rem 1.5rem 2rem;
+    }
+
+    header h1 {
+      margin: 0 0 0.5rem;
+      font-size: clamp(1.35rem, 3vw, 1.85rem);
+      font-weight: 700;
+    }
+
+    header p {
+      margin: 0;
+      max-width: 52rem;
+      opacity: 0.92;
+      font-size: 1.05rem;
+    }
+
+    main {
+      max-width: 52rem;
+      margin: 0 auto;
+      padding: 2rem 1.25rem 4rem;
+    }
+
+    article {
+      background: var(--paper);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.75rem 1.75rem 2rem;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+    }
+
+    h2 {
+      margin: 0 0 1rem;
+      font-size: 1.35rem;
+      color: #1e3a8a;
+      border-bottom: 2px solid var(--accent-soft);
+      padding-bottom: 0.4rem;
+    }
+
+    h3 {
+      margin: 1.5rem 0 0.65rem;
+      font-size: 1.1rem;
+      color: #334155;
+    }
+
+    p { margin: 0 0 1rem; }
+
+    ul, ol {
+      margin: 0 0 1rem;
+      padding-left: 1.35rem;
+    }
+
+    li { margin-bottom: 0.35rem; }
+
+    .lead {
+      font-size: 1.05rem;
+      color: var(--muted);
+    }
+
+    code {
+      font-family: Consolas, "Cascadia Code", monospace;
+      font-size: 0.9em;
+      background: #f1f5f9;
+      padding: 0.12em 0.35em;
+      border-radius: 4px;
+    }
+
+    pre {
+      background: var(--code-bg);
+      color: var(--code-text);
+      padding: 1rem 1.15rem;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-size: 0.82rem;
+      line-height: 1.5;
+      margin: 0 0 1rem;
+    }
+
+    pre code {
+      background: none;
+      padding: 0;
+      color: inherit;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0 0 1rem;
+      font-size: 0.95rem;
+    }
+
+    th, td {
+      border: 1px solid var(--border);
+      padding: 0.55rem 0.75rem;
+      text-align: left;
+    }
+
+    th {
+      background: var(--accent-soft);
+      font-weight: 600;
+    }
+
+    .note {
+      background: #fffbeb;
+      border-left: 4px solid #f59e0b;
+      padding: 0.85rem 1rem;
+      margin: 1rem 0;
+      border-radius: 0 8px 8px 0;
+      font-size: 0.95rem;
+    }
+
+    .tip {
+      background: #ecfdf5;
+      border-left: 4px solid #10b981;
+      padding: 0.85rem 1rem;
+      margin: 1rem 0;
+      border-radius: 0 8px 8px 0;
+      font-size: 0.95rem;
+    }
+
+    nav.toc {
+      background: var(--paper);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    nav.toc h2 {
+      font-size: 1rem;
+      margin-bottom: 0.75rem;
+      border: none;
+      padding: 0;
+      color: var(--text);
+    }
+
+    nav.toc ol {
+      margin: 0;
+      padding-left: 1.25rem;
+    }
+
+    nav.toc a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    nav.toc a:hover { text-decoration: underline; }
+
+    footer {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.9rem;
+      padding: 0 1rem 2rem;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Лабораторна робота №1</h1>
+  <p>Застосування м'ютексів та шаблонів стандартної бібліотеки для ізолювання доступу до даних у паралельних обчисленнях</p>
+</header>
+
+<main>
+
+  <nav class="toc" aria-label="Зміст">
+    <h2>Зміст</h2>
+    <ol>
+      <li><a href="#parallelism">Паралелізм і потоки в C++</a></li>
+      <li><a href="#sync">Проблеми синхронізації</a></li>
+      <li><a href="#mutex">М'ютекси</a></li>
+      <li><a href="#raii">lock_guard та RAII</a></li>
+      <li><a href="#oop">Інкапсуляція даних і м'ютекса</a></li>
+      <li><a href="#deadlock">Взаємне блокування та std::lock</a></li>
+      <li><a href="#unique">std::unique_lock</a></li>
+      <li><a href="#join-detach">join і detach</a></li>
+      <li><a href="#lab">Зв'язок теорії з пунктами 1.2.1–1.2.8</a></li>
+      <li><a href="#summary">Короткі висновки</a></li>
+    </ol>
+  </nav>
+
+  <article id="parallelism">
+    <h2>1. Паралелізм і потоки в C++</h2>
+    <p class="lead">
+      <strong>Паралелізм</strong> — це одночасне (або квазіодночасне) виконання кількох завдань однією системою.
+      У сучасних ОС паралельність забезпечують <strong>процеси</strong> та <strong>потоки</strong> (threads):
+      кожен процес має власний простір пам'яті, а потоки всередині процесу ділять пам'ять і ресурси.
+    </p>
+    <p>
+      У C++ для роботи з потоками використовується заголовок <code>&lt;thread&gt;</code>.
+      Клас <code>std::thread</code> запускає функцію в окремому потоці виконання.
+    </p>
+    <pre><code>#include &lt;iostream&gt;
+#include &lt;thread&gt;
+
+void hello() {
+    std::cout &lt;&lt; "Hello parallel world\n";
+}
+
+int main() {
+    std::thread t(hello);
+    t.join();  // головний потік чекає завершення t
+}</code></pre>
+    <p>
+      Після створення потік потрібно або <strong>приєднати</strong> (<code>join()</code>) — дочекатися його завершення,
+      або <strong>від'єднати</strong> (<code>detach()</code>) — дозволити йому працювати незалежно від життєвого циклу
+      об'єкта <code>std::thread</code> у <code>main</code>. Якщо потік лишається «приєднувальним» (joinable) і
+      знищується без <code>join</code> чи <code>detach</code>, викликається <code>std::terminate()</code>.
+    </p>
+  </article>
+
+  <article id="sync">
+    <h2>2. Проблеми синхронізації доступу до даних</h2>
+    <p>
+      Коли кілька потоків одночасно звертаються до <strong>спільних даних</strong> (глобальний масив, список,
+      поля об'єкта), виникають <strong>гонки даних</strong> (data races): результат залежить від порядку виконання
+      операцій, який непередбачуваний.
+    </p>
+    <ul>
+      <li>Один потік читає структуру, інший її змінює — можливі хибні результати або пошкодження структури.</li>
+      <li>Навіть прості операції «читання + запис» у двох потоках без координації не гарантують коректності.</li>
+      <li>Для контейнерів STL (наприклад, <code>std::list</code>) одночасна модифікація та обхід без синхронізації
+          можуть призвести до <strong>невизначеної поведінки</strong> програми.</li>
+    </ul>
+    <p>
+      Потрібен механізм <strong>взаємного виключення</strong>: у заданий момент лише один потік виконує критичну
+      ділянку коду, що працює зі спільним ресурсом.
+    </p>
+  </article>
+
+  <article id="mutex">
+    <h2>3. М'ютекс (mutex)</h2>
+    <p>
+      <strong>М'ютекс</strong> (від mutual exclusion) — примітив синхронізації. Потік перед доступом до спільних
+      даних <strong>захоплює</strong> м'ютекс; інші потоки, що намагаються захопити той самий м'ютекс,
+      <strong>блокуються</strong>, доки він не буде звільнений.
+    </p>
+    <p>У C++: заголовок <code>&lt;mutex&gt;</code>, тип <code>std::mutex</code>.</p>
+    <ul>
+      <li><code>lock()</code> — захопити м'ютекс (очікування, якщо зайнятий);</li>
+      <li><code>unlock()</code> — звільнити м'ютекс.</li>
+    </ul>
+    <pre><code>#include &lt;mutex&gt;
+
+std::mutex m1;
+int a[2] = { 2, 3 };
+
+void thread1() {
+    m1.lock();
+    a[0] = a[0] + a[1];
+    m1.unlock();
+}
+
+void thread2() {
+    m1.lock();
+    a[1] = a[0] * a[1];
+    m1.unlock();
+}</code></pre>
+    <p>
+      Поки один потік утримує <code>m1</code>, інший не змінить масив «посередині» операції — забезпечується
+      <strong>інваріантний доступ</strong> до захищених даних у межах пар lock/unlock.
+    </p>
+    <div class="note">
+      <strong>Увага.</strong> Викликати <code>lock()</code> і <code>unlock()</code> вручну не рекомендується:
+      при винятку або ранньому <code>return</code> можна «забути» <code>unlock()</code>, що призведе до
+      постійного блокування інших потоків.
+    </div>
+  </article>
+
+  <article id="raii">
+    <h2>4. std::lock_guard та RAII</h2>
+    <p>
+      Ідіома <strong>RAII</strong> (Resource Acquisition Is Initialization): ресурс (тут — блокування м'ютекса)
+      захоплюється в конструкторі об'єкта-обгортки і автоматично звільняється в деструкторі.
+    </p>
+    <p>Шаблон <code>std::lock_guard&lt;std::mutex&gt;</code> у конструкторі викликає <code>lock()</code>, у деструкторі — <code>unlock()</code>.</p>
+    <pre><code>void safe_update() {
+    std::lock_guard&lt;std::mutex&gt; guard(m1);
+    a[0] = a[0] + a[1];
+    // unlock() викликається автоматично при виході з функції
+}</code></pre>
+    <h3>Параметр std::adopt_lock</h3>
+    <p>
+      Якщо м'ютекс уже захоплено (наприклад, функцією <code>std::lock</code>), у конструктор
+      <code>lock_guard</code> передають <code>std::adopt_lock</code>: обгортка лише <strong>приймає володіння</strong>
+      існуючим блокуванням і звільнить м'ютекс у деструкторі, не викликаючи повторного <code>lock()</code>.
+    </p>
+    <pre><code>std::lock(mtx_a, mtx_b);
+std::lock_guard&lt;std::mutex&gt; ga(mtx_a, std::adopt_lock);
+std::lock_guard&lt;std::mutex&gt; gb(mtx_b, std::adopt_lock);</code></pre>
+  </article>
+
+  <article id="oop">
+    <h2>5. Інкапсуляція: дані і м'ютекс в одному класі</h2>
+    <p>
+      Замість глобальних змінних і окремого глобального м'ютекса доцільно помістити <strong>захищені дані</strong>
+      і <strong>м'ютекс</strong> у приватні поля одного класу. Так явно показується зв'язок між ресурсом і
+      механізмом синхронізації; доступ до даних відбувається через методи класу з коректним блокуванням.
+    </p>
+    <p>
+      У лабораторній клас <code>exchangePerson</code> містить поле <code>someData</code> та м'ютекс; статичні методи
+      <code>JohnDoe</code>, <code>JacobSmith</code> і <code>Swap</code> змінюють або обмінюють дані під захистом
+      відповідних блокувань.
+    </p>
+    <table>
+      <caption>Таблиця 1 — заповнення полів someData (з методички)</caption>
+      <thead>
+        <tr>
+          <th>Поле</th>
+          <th>JohnDoe</th>
+          <th>JacobSmith</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>ім'я</td><td>John</td><td>Jacob</td></tr>
+        <tr><td>прізвище</td><td>Doe</td><td>Smith</td></tr>
+        <tr><td>адреса</td><td>Unknown</td><td>Known</td></tr>
+        <tr><td>вік</td><td>120</td><td>1</td></tr>
+      </tbody>
+    </table>
+  </article>
+
+  <article id="deadlock">
+    <h2>6. Взаємне блокування (deadlock) і std::lock</h2>
+    <p>
+      Якщо для операції потрібно <strong>два м'ютекси</strong>, а потоки захоплюють їх у <strong>різному порядку</strong>,
+      можлива ситуація взаємного очікування:
+    </p>
+    <ul>
+      <li>Потік A захопив <code>mtx1</code> і чекає <code>mtx2</code>;</li>
+      <li>Потік B захопив <code>mtx2</code> і чекає <code>mtx1</code>;</li>
+      <li>Жоден не може продовжити — <strong>deadlock</strong>.</li>
+    </ul>
+    <p>
+      Функція <code>std::lock(mtx1, mtx2, ...)</code> атомарно захоплює кілька м'ютексів алгоритмом, що
+      <strong>уникає взаємного блокування</strong> при одночасному захопленні в одній точці коду.
+    </p>
+    <div class="note">
+      <code>std::lock</code> не усуває deadlock, якщо в різних місцях програми м'ютекси беруться
+      <strong>по черзі в різному порядку</strong> без узгодженої дисципліни. Тоді залишаються узгоджений
+      глобальний порядок захоплення або рефакторинг архітектури.
+    </div>
+    <p>
+      Обмін даними двох об'єктів <code>exchangePerson</code> у методі <code>Swap</code> потребує блокування
+      <strong>двох</strong> м'ютексів — типовий випадок застосування <code>std::lock</code> разом із
+      <code>lock_guard</code> і <code>std::adopt_lock</code>.
+    </p>
+  </article>
+
+  <article id="unique">
+    <h2>7. std::unique_lock</h2>
+    <p>
+      <code>std::unique_lock</code> — гнучкіша обгортка над м'ютексом, ніж <code>lock_guard</code>:
+    </p>
+    <ul>
+      <li>можна відкласти захоплення через <code>std::defer_lock</code> і заблокувати пізніше (<code>lock()</code> на обгортці або <code>std::lock(lock1, lock2)</code>);</li>
+      <li>можна тимчасово звільнити м'ютекс (<code>unlock()</code>) і знову захопити;</li>
+      <li>підтримує переміщення володіння між об'єктами <code>unique_lock</code>.</li>
+    </ul>
+    <p>
+      Плата за гнучкість — більший розмір об'єкта та дещо вищі накладні витрати порівняно з <code>lock_guard</code>.
+    </p>
+    <pre><code>std::unique_lock&lt;std::mutex&gt; la(a.mtx, std::defer_lock);
+std::unique_lock&lt;std::mutex&gt; lb(b.mtx, std::defer_lock);
+std::lock(la, lb);
+// обмін даними; при знищенні la, lb — автоматичне unlock</code></pre>
+    <p>
+      У пункті 1.2.7 метод <code>Swap</code> реалізують через <code>unique_lock</code> і <code>defer_lock</code>
+      замість пари <code>std::lock</code> + <code>lock_guard(adopt_lock)</code> з пункту 1.2.6 — логіка та сама,
+      змінюється лише спосіб керування блокуванням.
+    </p>
+  </article>
+
+  <article id="join-detach">
+    <h2>8. join і detach: вплив на спостережувану поведінку</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Операція</th>
+          <th>Поведінка</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>join()</code></td>
+          <td>Головний потік чекає завершення дочірнього; гарантовано можна покластися на результат роботи потока до продовження <code>main</code>.</td>
+        </tr>
+        <tr>
+          <td><code>detach()</code></td>
+          <td>Потік працює у фоні; <code>main</code> може завершитися раніше — вивід у консоль може не встигнути з'явитися, процес завершується разом із потоками ОС.</td>
+        </tr>
+        <tr>
+          <td>Ні join, ні detach</td>
+          <td>При знищенні joinable <code>std::thread</code> — <code>std::terminate()</code>.</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="tip">
+      Для лабораторних дослідів пунктів 1.2.1–1.2.2 важливо кілька разів запустити програму й зафіксувати
+      різницю виводу та завершення. Для коректної синхронізації з обміном даними (1.2.6) потік <code>Swap</code>
+      зазвичай <code>join()</code>, щоб головний потік отримав результат до завершення програми.
+    </div>
+  </article>
+
+  <article id="lab">
+    <h2>9. Зв'язок теорії з практичними пунктами 1.2.1–1.2.8</h2>
+
+    <h3>1.2.1 — потоки без join/detach</h3>
+    <p>Демонстрація правил життєвого циклу <code>std::thread</code> і недетермінованості при завершенні <code>main</code>.</p>
+
+    <h3>1.2.2 — detach</h3>
+    <p>Потоки від'єднані; відсутність <code>terminate</code>, але немає гарантії виконання до кінця <code>main</code>.</p>
+
+    <h3>1.2.3 — список без м'ютекса</h3>
+    <p>
+      Потоки <code>AddToList</code> і <code>ListContains</code> працюють з глобальним <code>std::list</code>.
+      Без синхронізації — гонки, частково заповнений список при перевірках, ризик UB при одночасній модифікації та обході.
+    </p>
+
+    <h3>1.2.4 — м'ютекс lock/unlock</h3>
+    <p>Критичні ділянки обгорнуті в <code>lock()</code> / <code>unlock()</code>; структура списку залишається цілісною.</p>
+
+    <h3>1.2.5 — lock_guard і багато коротких потоків</h3>
+    <p>
+      Одна операція додавання / одна перевірка на виклик; у <code>main</code> — цикл із 10 запусків і <code>detach</code>;
+      RAII через <code>lock_guard</code> замість ручного unlock.
+    </p>
+
+    <h3>1.2.6 — класи, std::lock, adopt_lock</h3>
+    <p>
+      <code>lock_guard</code> у <code>JohnDoe</code> / <code>JacobSmith</code>; у <code>Swap</code> — перевірка
+      <code>&amp;a != &amp;b</code>, <code>std::lock</code>, потім <code>lock_guard</code> з <code>adopt_lock</code>.
+    </p>
+
+    <h3>1.2.7 — unique_lock і defer_lock</h3>
+    <p>Альтернативна реалізація <code>Swap</code> з відкладеним захопленням і <code>std::lock(unique_lock, ...)</code>.</p>
+
+    <h3>1.2.8 — висновки</h3>
+    <p>Порівняння підходів до синхронізації:</p>
+    <ul>
+      <li>один м'ютекс на ресурс — просто, але серіалізує доступ;</li>
+      <li><code>std::lock</code> — для одночасного захоплення кількох м'ютексів;</li>
+      <li><code>lock_guard</code> — мінімальні накладні витрати, фіксована область блокування;</li>
+      <li><code>unique_lock</code> — коли потрібна відкладена блокування або складніше керування;</li>
+      <li><code>join</code> / <code>detach</code> — про коректність завершення та видимість результатів, а не про deadlock як такий.</li>
+    </ul>
+  </article>
+
+  <article id="summary">
+    <h2>10. Коротке резюме</h2>
+    <p>
+      Паралельні обчислення в C++ базуються на <code>std::thread</code>. Спільні дані вимагають синхронізації;
+      базовий інструмент — <code>std::mutex</code>. Надійніший стиль — RAII через <code>lock_guard</code> або
+      <code>unique_lock</code>. При роботі з кількома м'ютексами застосовують <code>std::lock</code> і узгоджений
+      порядок захоплення. Дані разом із м'ютексом доцільно інкапсулювати в клас. Практичні пункти лабораторної
+      послідовно показують відсутність синхронізації, ручні м'ютекси, RAII, багатопотокову роботу зі списком
+      та безпечний обмін між об'єктами з двома м'ютексами.
+    </p>
+  </article>
+
+</main>
+
+<footer>
+  Теоретичний конспект до лабораторної роботи №1 · C++11/17 · потоки та м'ютекси
+</footer>
+
+</body>
+</html>
