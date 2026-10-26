@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Лабораторна №2 — події та майбутні результати</title>
+  <style>
+    :root { --bg:#f4f6f9; --paper:#fff; --text:#1a1d26; --muted:#5c6370; --accent:#2563eb; --accent-soft:#dbeafe; --border:#e2e8f0; --code-bg:#0f172a; --code-text:#e2e8f0; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:"Segoe UI",Arial,system-ui,sans-serif; line-height:1.65; color:var(--text); background:var(--bg); }
+    header { background:linear-gradient(135deg,#1e3a8a,#2563eb); color:#fff; padding:2.5rem 1.5rem 2rem; }
+    header h1 { margin:0 0 .5rem; font-size:clamp(1.35rem,3vw,1.85rem); }
+    main { max-width:52rem; margin:0 auto; padding:2rem 1.25rem 4rem; }
+    article { background:var(--paper); border:1px solid var(--border); border-radius:12px; padding:1.75rem; margin-bottom:1.5rem; }
+    h2 { margin:0 0 1rem; font-size:1.35rem; color:#1e3a8a; border-bottom:2px solid var(--accent-soft); padding-bottom:.4rem; }
+    h3,h4 { color:#334155; }
+    code { background:#f1f5f9; padding:.1em .35em; border-radius:4px; font-family:Consolas,monospace; font-size:.9em; }
+    pre { background:var(--code-bg); color:var(--code-text); padding:1rem; border-radius:8px; overflow:auto; font-size:.82rem; }
+    table { width:100%; border-collapse:collapse; margin:1rem 0; font-size:.95rem; }
+    th,td { border:1px solid var(--border); padding:.55rem .75rem; text-align:left; }
+    th { background:var(--accent-soft); }
+    .note { background:#fffbeb; border-left:4px solid #f59e0b; padding:.85rem 1rem; margin:1rem 0; border-radius:0 8px 8px 0; }
+    .tip { background:#ecfdf5; border-left:4px solid #10b981; padding:.85rem 1rem; margin:1rem 0; border-radius:0 8px 8px 0; }
+    .example { background:#f8fafc; border:1px solid var(--border); border-radius:8px; padding:.85rem 1rem; font-family:Consolas,monospace; font-size:.8rem; white-space:pre-wrap; }
+    nav.toc { background:var(--paper); border:1px solid var(--border); border-radius:12px; padding:1.25rem 1.5rem; margin-bottom:1.5rem; }
+    nav.toc a { color:var(--accent); text-decoration:none; }
+    nav.toc a:hover { text-decoration:underline; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>Лабораторна робота №2</h1>
+  <p>Синхронізація паралельних операцій за допомогою механізму подій та механізму майбутніх результатів</p>
+</header>
+<main>
+<nav class="toc">
+  <h2>Зміст</h2>
+  <ol>
+    <li><a href="#poll">Опитування прапорця (1.2.1)</a></li>
+    <li><a href="#cv">Умовні змінні</a></li>
+    <li><a href="#future">Майбутні результати</a></li>
+    <li><a href="#lab21">1.2.1 — DataPreparation / DataProcessing</a></li>
+    <li><a href="#lab22">1.2.2 — Waits / Awake</a></li>
+    <li><a href="#lab23">1.2.3 — Thread1..3 / Notify</a></li>
+    <li><a href="#lab24">1.2.4 — condition_variable + черга</a></li>
+    <li><a href="#lab25">1.2.5 — std::async</a></li>
+    <li><a href="#lab26">1.2.6 — packaged_task</a></li>
+    <li><a href="#lab27">1.2.7 — promise / future</a></li>
+    <li><a href="#lab28">1.2.8 — висновки</a></li>
+  </ol>
+</nav>
+
+<article id="poll">
+  <h2>1. Опитування прапорця та sleep_for</h2>
+  <p>Потік-споживач може в циклі перевіряти спільний прапорець під м’ютексом. Між перевірками застосовують <code>unique_lock</code>, <code>unlock</code>, <code>this_thread::sleep_for</code>, <code>lock</code> — це зменшує навантаження на CPU, але залишає <strong>активне очікування</strong> (latency до 100 мс у методичці).</p>
+  <pre><code>std::unique_lock&lt;mutex&gt; lk(m);
+while (!flag) {
+    lk.unlock();
+    this_thread::sleep_for(chrono::milliseconds(100));
+    lk.lock();
+}</code></pre>
+  <div class="note">Недолік: затримка реакції, витрати на пробудження потоку, ризик пропустити момент зміни прапорця між перевірками (якщо логіка складніша).</div>
+</article>
+
+<article id="cv">
+  <h2>2. Умовні змінні (condition_variable)</h2>
+  <p><code>std::condition_variable</code> дозволяє потоку <strong>засинати</strong>, доки не настане подія. Інший потік викликає <code>notify_one()</code> або <code>notify_all()</code>.</p>
+  <p><code>wait(lock, predicate)</code> еквівалентно циклу: звільнити м’ютекс → чекати → захопити → перевірити предикат. Тому потрібен <code>std::unique_lock</code>, а не <code>lock_guard</code>.</p>
+  <table>
+    <tr><th>Метод</th><th>Дія</th></tr>
+    <tr><td><code>notify_one()</code></td><td>Пробудити один потік (випадковий)</td></tr>
+    <tr><td><code>notify_all()</code></td><td>Пробудити всіх очікувачів</td></tr>
+    <tr><td><code>wait(lk, []{return i==1;})</code></td><td>Чекати, поки предикат true</td></tr>
+  </table>
+</article>
+
+<article id="future">
+  <h2>3. Майбутні результати</h2>
+  <ul>
+    <li><code>std::async</code> — запуск функції, повертає <code>std::future</code>; <code>launch::deferred</code> vs <code>launch::async</code>.</li>
+    <li><code>std::packaged_task</code> — зв’язує callable і <code>future</code>; зручно для черг завдань.</li>
+    <li><code>std::promise</code> / <code>std::future</code> — ручна передача значення між потоками (<code>set_value</code>, <code>get</code>).</li>
+  </ul>
+</article>
+
+<article id="lab21">
+  <h2>4. Пункт 1.2.1 — <code>lab2_2_1.cpp</code></h2>
+  <p><strong>DataPreparation</strong> (detach): читає цілі числа в глобальну чергу, встановлює <code>input_done</code>.</p>
+  <p><strong>DataProcessing</strong> (join у main): чекає прапорець через цикл із <code>sleep_for(100ms)</code>, потім виводить <strong>прості</strong> числа з черги.</p>
+  <div class="example">Введіть: 4 5 7 9
+Прості: 5 7</div>
+  <table>
+    <tr><th>Варіант</th><th>Пояснення</th></tr>
+    <tr><td>Затримка перед обробкою ~100 мс</td><td>Після завершення вводу Processing ще «спить» у циклі опитування</td></tr>
+    <tr><td>Немає простих у виводі</td><td>У черзі не було простих чисел</td></tr>
+  </table>
+</article>
+
+<article id="lab22">
+  <h2>5. Пункт 1.2.2 — <code>lab2_2_2.cpp</code></h2>
+  <p>Три потоки <code>Waits</code> чекають <code>i == 1</code>. <code>Awake</code>: sleep 100 мс → <code>notify_all</code> → sleep 100 мс → <code>i = 1</code> → <code>notify_all</code>. Main робить <code>join</code> на Awake, потім на Waits.</p>
+  <div class="tip">Перший <code>notify_all</code> при <code>i == 0</code>: потоки пробуджуються, предикат хибний — знову чекають. Після <code>i = 1</code> другий notify завершує очікування. У звіті зафіксуйте порядок рядків у консолі.</div>
+</article>
+
+<article id="lab23">
+  <h2>6. Пункт 1.2.3 — <code>lab2_2_3.cpp</code></h2>
+  <p>Три потоки виводять «Повідомлення з потоку N». <code>Notify</code> після 100 мс встановлює <code>i = 1</code> і викликає <code>notify_one()</code> — пробуджується <strong>лише один</strong> потік.</p>
+  <table>
+    <tr><th>Запуск</th><th>Очікування</th></tr>
+    <tr><td>1</td><td>Повідомлення лише з одного номера (1, 2 або 3)</td></tr>
+    <tr><td>2–5</td><td>Номер потоку може змінюватися (випадковий вибір notify_one)</td></tr>
+  </table>
+</article>
+
+<article id="lab24">
+  <h2>7. Пункт 1.2.4 — <code>lab2_2_4.cpp</code></h2>
+  <p>Та сама задача, що 1.2.1, але замість опитування прапорця — <code>condition_variable</code>. Предикат: <code>!data_queue.empty() || input_done</code> — обробка елементів по мірі надходження та вихід після завершення вводу.</p>
+  <div class="example">Порівняння з 1.2.1: менше «порожніх» пробуджень CPU, реакція на нові дані без фіксованої паузи 100 мс.</div>
+</article>
+
+<article id="lab25">
+  <h2>8. Пункт 1.2.5 — <code>lab2_2_5.cpp</code></h2>
+  <p>Користувач вводить <code>n</code>. Програма двічі обчислює <code>n</code>-те просте: спочатку <code>std::launch::deferred</code>, потім <code>std::launch::async</code>. Між створенням <code>future</code> і <code>get()</code> можна обчислити sqrt/sin/ln від <strong>номера</strong> n.</p>
+  <table>
+    <tr><th>Режим</th><th>Коли рахується nth_prime</th><th>Типова затримка get()</th></tr>
+    <tr><td>deferred</td><td>Лише при <code>get()</code></td><td>Вся робота в момент get (після вводу користувача)</td></tr>
+    <tr><td>async</td><td>У фоновому потоці</td><td>Менше, якщо обчислення встигло під час вводу</td></tr>
+  </table>
+  <p>Для великого n (наприклад 20000+) різниця в мілісекундах помітна в логах програми.</p>
+</article>
+
+<article id="lab26">
+  <h2>9. Пункт 1.2.6 — <code>lab2_2_6.cpp</code></h2>
+  <p>Main додає в два деки пари (<code>packaged_task</code>, n) до стоп-символу <code>q</code>. Worker безпечно забирає завдання, обчислює n-те просте, виводить результат. Main чекає всі <code>future</code> і зупиняє worker.</p>
+  <div class="note">Це модель <strong>черги завдань</strong>: головний потік не блокується на кожному обчисленні, а делегує робочому потоку.</div>
+</article>
+
+<article id="lab27">
+  <h2>10. Пункт 1.2.7 — <code>lab2_2_7.cpp</code></h2>
+  <p>Без глобальних змінних. <strong>Thread1</strong>: через <code>promise</code> передає n-те та (10n)-те просте; <code>promise&lt;bool&gt;</code> сигналізує Thread2. <strong>Thread2</strong>: після сигналу пауза 2 с, виводить <code>sqrt(n)</code>. Main виводить обидва прості після <code>join</code> Thread1.</p>
+  <p>Порядок у консолі: спочатку може з’явитися sqrt (через 2 с після сигналу), потім або одночасно — прості числа з main.</p>
+</article>
+
+<article id="lab28">
+  <h2>11. Пункт 1.2.8 — висновки для звіту</h2>
+  <ol>
+    <li><strong>Умовні змінні</strong> ефективніші за опитування прапорця; потрібен коректний предикат і зв’язок notify зі зміною стану.</li>
+    <li><strong>notify_one vs notify_all</strong> — один споживач vs усі очікувачі.</li>
+    <li><strong>async / packaged_task / promise</strong> — зростання контролю над передачею результатів; promise найгнучкіший, async найпростіший для разових задач.</li>
+    <li>Порівняйте лаб. №1 (м’ютекси) і №2 (події + futures): м’ютекс захищає дані, condition_variable координує <em>події</em>, future передає <em>результати</em>.</li>
+  </ol>
+  <p>До звіту: лістинги <code>lab2_2_1.cpp</code> … <code>lab2_2_7.cpp</code>, скріни консолі з рамками <code>thread_log</code>, таблиці «запуск → спостереження → інтерпретація».</p>
+</article>
+</main>
+<footer style="text-align:center;color:#5c6370;padding:2rem;">ParalelLab2 · C++17 · condition_variable · future</footer>
+</body>
+</html>
